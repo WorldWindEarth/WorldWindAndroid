@@ -115,8 +115,7 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
     /**
      * The label text to draw near the placemark.
      */
-    // TODO: implement label property
-//    protected String label;
+    protected Label label;
 
     /**
      * Determines whether the normal or highlighted attibutes should be used.
@@ -210,7 +209,7 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
         this.setPosition(position);
         this.setAltitudeMode(WorldWind.ABSOLUTE);
         this.setDisplayName(name == null || name.isEmpty() ? "Placemark" : name);
-        // this.setLabel(name); // TODO: call setLabel(name)
+        this.setLabel(name);
         this.attributes = attributes;
         this.eyeDistanceScaling = false;
         this.eyeDistanceScalingThreshold = DEFAULT_EYE_DISTANCE_SCALING_THRESHOLD;
@@ -257,10 +256,9 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
      *
      * @return A new Placemark with a PlacemarkAttributes bundle containing TextAttributes.
      */
-    // TODO: implement createWithImageAndLabel factory method
-//    public static Placemark createWithImageAndLabel(Position position, ImageSource imageSource, String label) {
-//        return new Placemark(position, PlacemarkAttributes.createWithImage(imageSource), label);
-//    }
+    public static Placemark createWithImageAndLabel(Position position, ImageSource imageSource, String label) {
+       return new Placemark(position, PlacemarkAttributes.createWithImage(imageSource), label);
+    }
 
     /**
      * Gets this placemark's geographic position.
@@ -390,10 +388,9 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
      *
      * @return The text used to label a placemark on the globe when labels are enabled
      */
-    // TODO: implement getLabel()
-//    public String getLabel() {
-//        return label;
-//    }
+    public String getLabel() {
+       return this.label.getText();
+    }
 
     /**
      * Sets the text used for this placemark's label on the globe.
@@ -402,11 +399,12 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
      *
      * @return This placemark
      */
-    // TODO: implement setLabel()
-//    public Placemark setLabel(String label) {
-//        this.label = label;
-//        return this;
-//    }
+    public Placemark setLabel(String label) {
+        if (this.label == null) {
+            this.label = new Label(this.getPosition(), label);
+        }
+        return this;
+    }
 
     /**
      * Indicates whether this placemark's size is reduced at higher eye distances. If true, this placemark's size is
@@ -764,6 +762,16 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
         if (rc.pickMode && rc.drawableCount() != drawableCount) {
             rc.offerPickedObject(PickedObject.fromRenderable(this.pickedObjectId, this, rc.currentLayer));
         }
+
+        if (this.mustDrawLabel(rc)) {
+            // Pass label attributes to Label object before render; TODO is this costly?
+            Object labelAttrs = this.activeAttributes.getLabelAttributes();
+            if (labelAttrs instanceof TextAttributes) {
+                this.label.setAttributes((TextAttributes) labelAttrs);
+            }
+            this.label.doRender(rc);
+        }
+
     }
 
     /**
@@ -916,13 +924,11 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
      *
      * @return True if there is a valid label and label attributes.
      */
-
     protected boolean mustDrawLabel(RenderContext rc) {
-        return false;
-        // TODO: implement mustDrawLabel()
-//        return this.label != null
-//            && !this.label.isEmpty()
-//            && this.activeAttributes.labelAttributes != null;
+        return this.label != null
+           && this.label.getText() != null
+           && !this.label.getText().isEmpty()
+           && this.activeAttributes.getLabelAttributes() != null;
     }
 
     /**
