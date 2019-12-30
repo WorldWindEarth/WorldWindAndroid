@@ -286,6 +286,10 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
         } else {
             this.position.set(position);
         }
+        // We must also move this.label to follow the icon
+        if (this.label != null) {
+            this.label.setPosition(position);
+        }
         return this;
     }
 
