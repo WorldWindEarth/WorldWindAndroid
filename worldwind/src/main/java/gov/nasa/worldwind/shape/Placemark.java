@@ -407,6 +407,9 @@ public class Placemark extends AbstractRenderable implements Highlightable, Mova
         if (this.label == null) {
             this.label = new Label(this.getPosition(), label);
         }
+        else {
+            this.label.setText(label);
+        }
         return this;
     }
 
