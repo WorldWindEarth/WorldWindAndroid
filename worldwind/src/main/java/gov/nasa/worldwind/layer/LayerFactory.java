@@ -11,6 +11,9 @@ import android.os.Looper;
 
 import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -457,13 +460,99 @@ public class LayerFactory {
             // Parse and read the input stream
             wmsCapabilities = WmsCapabilities.getCapabilities(inputStream);
         } catch (Exception e) {
-            throw new RuntimeException(
-                Logger.makeMessage("LayerFactory", "retrieveWmsCapabilities", "Unable to open connection and read from service address"));
+            // Attempt to read capabilities from cache file
+            wmsCapabilities = attemptGlobalCacheWmsCapabilitiesResolution(serviceAddress);
+            if (wmsCapabilities == null) {
+                throw new RuntimeException(
+                    Logger.makeMessage("LayerFactory", "retrieveWmsCapabilities", "Unable to open connection and read from service address"));
+            }
         } finally {
-            WWUtil.closeSilently(inputStream);
+            if (inputStream != null) {
+                WWUtil.closeSilently(inputStream);
+            }
+        }
+
+        if (wmsCapabilities != null) {
+            addToGlobalCache(serviceAddress, wmsCapabilities);
         }
 
         return wmsCapabilities;
+    }
+
+    private WmsCapabilities attemptGlobalCacheWmsCapabilitiesResolution(String serviceAddress) {
+        File cacheFile = getGlobalCacheUrlFile(serviceAddress);
+        if (!cacheFile.exists()) {
+            return null;
+        }
+        FileInputStream inputStream = null;
+        WmsCapabilities wmsCapabilities = null;
+        try {
+            inputStream = new FileInputStream(cacheFile);
+            // Parse and read the input stream
+            wmsCapabilities = WmsCapabilities.getCapabilities(inputStream);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                Logger.makeMessage("LayerFactory", "retrieveWmsCapabilities", "Unable to read WmsCapabilities from global cache"));
+        } finally {
+            if (inputStream != null) {
+                WWUtil.closeSilently(inputStream);
+            }
+        }
+        return wmsCapabilities;
+    }
+
+    private void addToGlobalCache(String serviceAddress, WmsCapabilities wmsCapabilities) {
+        // We do not actually use wmsCapabilities except to exit on empty data;
+        // instead we download the XML data from a URL constructed the same way as retrieveWmsCapabilities()
+        if (wmsCapabilities == null) {
+            return;
+        }
+        File cacheFile = getGlobalCacheUrlFile(serviceAddress);
+        InputStream inputStream = null;
+        FileOutputStream fos = null;
+        try {
+            // Build the appropriate request Uri given the provided service address
+            Uri serviceUri = Uri.parse(serviceAddress).buildUpon()
+                .appendQueryParameter("VERSION", "1.3.0")
+                .appendQueryParameter("SERVICE", "WMS")
+                .appendQueryParameter("REQUEST", "GetCapabilities")
+                .build();
+
+            // Open the connection as an input stream
+            URLConnection conn = new URL(serviceUri.toString()).openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(30000);
+            inputStream = new BufferedInputStream(conn.getInputStream());
+
+            // Open the cache file for writing
+            fos = new FileOutputStream(cacheFile);
+
+            byte[] buffer = new byte[8 * 1024];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+
+        } catch (Exception e) {
+            // Throwing this error does not make sense; we may be offline and doing nothing is appropriate.
+            
+        } finally {
+            if (inputStream != null) {
+                WWUtil.closeSilently(inputStream);
+            }
+            if (fos != null) {
+                WWUtil.closeSilently(fos);
+            }
+        }
+    }
+
+    /**
+     * This uses the method gov.nasa.worldwind.render.ImageRetriever.getGlobalCacheUrlFile
+     * to resolve a url-specific cache file that ends in ".xml" for use caching WMS capabilities
+     * for offline use.
+     */
+    protected static File getGlobalCacheUrlFile(String serviceAddress) {
+        return gov.nasa.worldwind.render.ImageRetriever.getGlobalCacheUrlFile(serviceAddress, "%s.xml");
     }
 
     protected WmtsCapabilities retrieveWmtsCapabilities(String serviceAddress) throws Exception {
